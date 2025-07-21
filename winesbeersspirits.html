@@ -1,0 +1,176 @@
+<!-- Comprehensive Drinks Receipt System: Spirits, Beers, Wines, Mixers -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Foundry Bar Receipts</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cutive+Mono&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height:100%; overflow:hidden; background:#333; font-family:'Cutive Mono', monospace; }
+    body { display:flex; flex-direction:column; }
+
+    /* History bar */
+    #history {
+      position:fixed; top:0; left:0; right:0;
+      height:80px; background:#222; padding:8px;
+      display:flex; align-items:center; overflow-x:auto; gap:8px; z-index:200;
+    }
+    .thumb {
+      width:80px; height:120px; background:#fff;
+      box-shadow:0 0 5px rgba(0,0,0,0.5);
+      cursor:pointer; flex:none;
+      font-size:0.6rem; padding:4px; display:flex; flex-direction:column;
+    }
+    .thumb .label { font-size:0.7rem; text-align:center; margin-bottom:4px; }
+    .thumb .item { flex:1; display:flex; justify-content:space-between; }
+
+    /* Order counter */
+    #counter {
+      position:fixed; bottom:0; left:0; right:0;
+      background:#222; color:#fff; text-align:center;
+      padding:8px; font-size:1rem; z-index:200;
+    }
+
+    /* Receipt */
+    #receipt {
+      width:320px; height:480px;
+      background:#fff; padding:16px; box-shadow:0 0 10px rgba(0,0,0,0.5);
+      position:absolute; top:50px; left:50%; transform:translateX(-50%);
+      transition:all 0.6s ease;
+      display:flex; flex-direction:column;
+      cursor:pointer; z-index:100;
+    }
+    #receipt.fly {
+      width:80px; height:120px;
+      top:8px; left:8px; transform:none;
+    }
+    #time { position:absolute; top:8px; right:16px; font-size:0.9rem; }
+    h1 { text-align:center; margin-top:24px; font-size:1.4rem; }
+    #items { margin-top:48px; flex:1; overflow:hidden; }
+    .item { display:flex; justify-content:space-between; font-size:1rem; }
+    #total { border-top:1px dashed #000; padding-top:8px; display:flex; justify-content:space-between; font-weight:bold; }
+  </style>
+</head>
+<body>
+  <div id="history"></div>
+  <div id="receipt">
+    <div id="time"></div>
+    <h1>Foundry Bar</h1>
+    <div id="items"></div>
+    <div id="total"></div>
+  </div>
+  <div id="counter">Orders: <span id="count">0</span></div>
+
+  <script>
+    // Data arrays
+    const spirits  = ['vodka','bourbon','sailor jerry','jack daniels','kraken','jamesons','caol ila','kahlua','gin','straw gin','tequila blanc','tequila gold','havana','makers mark'];
+    const beers    = ['madri','corona','desperado','smirnoff ice'];
+    const wines    = ['house white','house red','house rose','zinfandel','malbec','sauvignon blanc','pinot noir','pinot grigio'];
+    const mixers   = ['vodka+coke','vodka+tonic','rum+coke','brandy+coke','jd+coke','vodka+lemonade','w-w spritzer'];
+    const categories = ['spirits','beers','wines','mixers'];
+
+    function randomChoice(arr) { return arr[Math.floor(Math.random()*arr.length)]; }
+
+    // Generate one item from categories
+    function genItem() {
+      const cat = randomChoice(categories);
+      if (cat === 'beers') {
+        const b = randomChoice(beers);
+        const name = b.charAt(0).toUpperCase() + b.slice(1);
+        const price = name === 'Smirnoff ice' ? 5.00 : 4.00;
+        return { name, price };
+      }
+      if (cat === 'wines') {
+        const w = randomChoice(wines);
+        const size = randomChoice(['small','medium','large','bottle']);
+        const name = `${size} ${w}`;
+        const price = size === 'small' ? 5 : size === 'medium' ? 7 : size === 'large' ? 10 : 25;
+        return { name, price };
+      }
+      if (cat === 'mixers') {
+        const m = randomChoice(mixers);
+        const name = m.split('+').map(s=>s.charAt(0).toUpperCase()+s.slice(1)).join(' + ');
+        const price = 6.00;
+        return { name, price };
+      }
+      // spirits
+      const s = randomChoice(spirits);
+      const shot = Math.random()<0.5 ? 'single' : 'double';
+      const ice  = Math.random()<0.5 ? 'w/ice' : 'no ice';
+      const name = `${shot} ${s} (${ice})`;
+      const price= shot==='single'?4.50:7.50;
+      return { name, price };
+    }
+
+    // Elements and state
+    let orderCount = 0;
+    const receipt   = document.getElementById('receipt');
+    const timeEl    = document.getElementById('time');
+    const itemsEl   = document.getElementById('items');
+    const totalEl   = document.getElementById('total');
+    const counterEl = document.getElementById('count');
+    const historyEl = document.getElementById('history');
+
+    // Display items on receipt
+    function displayReceipt(items) {
+      const now = new Date();
+      timeEl.textContent = now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+      itemsEl.innerHTML = '';
+      let sum = 0;
+      items.forEach(it => {
+        const d = document.createElement('div'); d.className='item';
+        d.innerHTML = `<span>${it.name}</span><span>£${it.price.toFixed(2)}</span>`;
+        itemsEl.appendChild(d);
+        sum += it.price;
+      });
+      totalEl.innerHTML = `<span>Total</span><span>£${sum.toFixed(2)}</span>`;
+    }
+
+    // Generate random receipt items
+    function renderNewReceipt() {
+      const count = Math.floor(Math.random()*4)+1;
+      return Array.from({length: count}, genItem);
+    }
+
+    // Add a thumbnail for archived receipt
+    function addThumbnail(items) {
+      const thumb = document.createElement('div'); thumb.className='thumb'; thumb._items=items;
+      const lab = document.createElement('div'); lab.className='label'; lab.textContent='Foundry'; thumb.appendChild(lab);
+      items.forEach(it=>{
+        const r = document.createElement('div'); r.className='item';
+        r.innerHTML = `<span>${it.name}</span><span>£${it.price.toFixed(2)}</span>`;
+        thumb.appendChild(r);
+      });
+      thumb.addEventListener('click', ()=>{
+        receipt.classList.remove('fly');
+        receipt.style.top='50px'; receipt.style.left='50%'; receipt.style.transform='translateX(-50%)';
+        displayReceipt(thumb._items);
+      });
+      historyEl.appendChild(thumb);
+    }
+
+    // Click main receipt to archive it
+    receipt.addEventListener('click', ()=>{
+      // capture current items
+      const current = [];
+      document.querySelectorAll('#items .item').forEach(div=>{
+        const spans = div.querySelectorAll('span');
+        current.push({name: spans[0].innerText, price: parseFloat(spans[1].innerText.replace('£',''))});
+      });
+      receipt.classList.add('fly');
+      setTimeout(()=>{
+        addThumbnail(current);
+        receipt.classList.remove('fly');
+        displayReceipt(renderNewReceipt());
+      },600);
+      orderCount++;
+      counterEl.textContent = orderCount;
+    });
+
+    // Initialize first receipt
+    displayReceipt(renderNewReceipt());
+  </script>
+</body>
+</html>

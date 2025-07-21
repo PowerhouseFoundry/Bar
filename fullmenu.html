@@ -1,0 +1,130 @@
+<!-- Final Version: Thumbnail click restores receipt -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Foundry Bar Receipts</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cutive+Mono&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height:100%; overflow:hidden; background:#333; font-family:'Cutive Mono', monospace; }
+    body { display:flex; flex-direction:column; }
+
+    /* History bar */
+    #history {
+      position:fixed; top:0; left:0; right:0;
+      height:80px; background:#222; padding:8px;
+      display:flex; align-items:center; overflow-x:auto;
+      gap:8px; z-index:200;
+    }
+    .thumb {
+      width:80px; height:120px; background:#fff;
+      box-shadow:0 0 5px rgba(0,0,0,0.5);
+      cursor:pointer; flex:none;
+      font-size:0.6rem; padding:4px; display:flex; flex-direction:column;
+    }
+    .thumb .label { font-size:0.7rem; text-align:center; }
+    .thumb .item { flex:1; display:flex; justify-content:space-between; }
+
+    /* Order counter */
+    #counter {
+      position:fixed; bottom:0; left:0; right:0;
+      background:#222; color:#fff; text-align:center;
+      padding:8px; font-size:1rem; z-index:200;
+    }
+
+    /* Receipt */
+    #receipt {
+      width:320px; height:480px;
+      background:#fff; padding:16px; box-shadow:0 0 10px rgba(0,0,0,0.5);
+      position:absolute; top:50px; left:50%; transform:translateX(-50%);
+      transition:all 0.6s ease;
+      display:flex; flex-direction:column;
+      cursor:pointer;
+      z-index:100;
+    }
+    #receipt.fly {
+      width:80px; height:120px;
+      top:8px; left:8px; transform:none;
+    }
+    #time { position:absolute; top:8px; right:16px; font-size:0.9rem; }
+    h1 { text-align:center; margin-top:24px; font-size:1.4rem; }
+    #items { margin-top:48px; flex:1; overflow:hidden; }
+    .item { display:flex; justify-content:space-between; font-size:1rem; }
+    #total { border-top:1px dashed #000; padding-top:8px; display:flex; justify-content:space-between; font-weight:bold; }
+  </style>
+</head>
+<body>
+  <div id="history"></div>
+  <div id="receipt">
+    <div id="time"></div>
+    <h1>Foundry Bar</h1>
+    <div id="items"></div>
+    <div id="total"></div>
+  </div>
+  <div id="counter">Orders: <span id="count">0</span></div>
+
+  <script>
+    // Categories and data
+    const categories = {
+      spirits: ['vodka','bourbon','sailor jerry','jack daniels','kraken','jamesons','caol ila','kahlua','gin','straw gin','tequila blanc','tequila gold','havana','makers mark'],
+      wine: ['house white','house red','house rose','bottle house white','bottle house red','bottle house rose','zinfandel','malbec','sauvignon blanc','pinot noir','pinot grigio'],
+      beer: ['madri','corona','desperado','smirnoff ice'],
+      cocktail: ['screwdriver','cuba libre','white russian','aperol spritz','negroni','gin & tonic']
+    };
+    function randomChoice(arr) { return arr[Math.floor(Math.random()*arr.length)]; }
+    function genItem() {
+      const cat = randomChoice(Object.keys(categories));
+      let name = randomChoice(categories[cat]); let price;
+      if(cat==='spirits'){
+        const shot = Math.random()<0.5?'single':'double';
+        const ice = Math.random()<0.5?'w/ice':'no ice';
+        name=`${shot} ${name} (${ice})`; price=shot==='single'?4.5:7.5;
+      } else if(cat==='wine'){
+        const size=randomChoice(['small','medium','large','bottle']); name=`${size} ${name}`;
+        price=size==='small'?5:size==='medium'?7:size==='large'?10:25;
+      } else if(cat==='beer'){
+        name=name.charAt(0).toUpperCase()+name.slice(1); price=name==='Smirnoff ice'?5:4;
+      } else { name=name.charAt(0).toUpperCase()+name.slice(1); price=randomChoice([8,9,10,11,12]); }
+      return {name,price};
+    }
+
+    let orderCount=0;
+    const receipt=document.getElementById('receipt'), timeEl=document.getElementById('time'), itemsEl=document.getElementById('items'), totalEl=document.getElementById('total'), counterEl=document.getElementById('count'), historyEl=document.getElementById('history');
+
+    function displayReceipt(items){
+      const now=new Date(); timeEl.textContent=now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+      itemsEl.innerHTML=''; let sum=0;
+      items.forEach(it=>{const d=document.createElement('div'); d.className='item'; d.innerHTML=`<span>${it.name}</span><span>£${it.price.toFixed(2)}</span>`;itemsEl.appendChild(d);sum+=it.price;});
+      totalEl.innerHTML=`<span>Total</span><span>£${sum.toFixed(2)}</span>`;
+    }
+
+    function renderNewReceipt(){const cnt=Math.floor(Math.random()*4)+1; return Array.from({length:cnt},genItem);}
+
+    function addThumbnail(items){
+      const thumb=document.createElement('div'); thumb.className='thumb'; thumb._items=items;
+      const lab=document.createElement('div'); lab.className='label'; lab.textContent='Foundry'; thumb.appendChild(lab);
+      items.forEach(it=>{const r=document.createElement('div'); r.className='item'; r.innerHTML=`<span>${it.name}</span><span>£${it.price.toFixed(2)}</span>`; thumb.appendChild(r);});
+      thumb.addEventListener('click',()=>{
+        // restore ticket
+        receipt.classList.remove('fly'); receipt.style.top='50px'; receipt.style.left='50%'; receipt.style.transform='translateX(-50%)';
+        displayReceipt(thumb._items);
+      });
+      historyEl.appendChild(thumb);
+    }
+
+    receipt.addEventListener('click',()=>{
+      // capture current
+      const current=[];
+      document.querySelectorAll('#items .item').forEach(div=>{const spans=div.querySelectorAll('span');current.push({name:spans[0].innerText,price:parseFloat(spans[1].innerText.replace('£',''))});});
+      receipt.classList.add('fly');
+      setTimeout(()=>{addThumbnail(current);receipt.classList.remove('fly'); const newItems=renderNewReceipt(); displayReceipt(newItems);},600);
+      orderCount++; counterEl.textContent=orderCount;
+    });
+
+    // init
+    displayReceipt(renderNewReceipt());
+  </script>
+</body>
+</html>
