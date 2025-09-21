@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Foundry Bar Tickets — All Items</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cutive+Mono&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height:100%; overflow:hidden; background:#333; font-family:'Cutive Mono', monospace; }
+    body { display:flex; flex-direction:column; }
+
+    #history {
+      position:fixed; top:0; left:0; right:0;
+      height:80px; background:#222; padding:8px;
+      display:flex; align-items:center; overflow-x:auto;
+      gap:8px; z-index:200;
+    }
+    .thumb {
+      width:80px; height:120px; background:#fff;
+      box-shadow:0 0 5px rgba(0,0,0,0.5);
+      cursor:pointer; flex:none;
+      font-size:0.6rem; padding:4px; display:flex; flex-direction:column;
+    }
+    .thumb .label { font-size:0.7rem; text-align:center; }
+    .thumb .item { flex:1; }
+
+    #counter {
+      position:fixed; bottom:0; left:0; right:0;
+      background:#222; color:#fff; text-align:center;
+      padding:8px; font-size:1rem; z-index:200;
+    }
+
+    #receipt {
+      width:320px; height:480px;
+      background:#fff; padding:16px; box-shadow:0 0 10px rgba(0,0,0,0.5);
+      position:absolute; top:50px; left:50%; transform:translateX(-50%);
+      transition:all 0.6s ease;
+      display:flex; flex-direction:column;
+      cursor:pointer; z-index:100;
+    }
+    #receipt.fly {
+      width:80px; height:120px;
+      top:8px; left:8px; transform:none;
+    }
+    #time { position:absolute; top:8px; right:16px; font-size:0.9rem; }
+    h1 { text-align:center; margin-top:24px; font-size:1.4rem; }
+    #items { margin-top:48px; flex:1; overflow:hidden; }
+    .item { font-size:1rem; }
+  </style>
+</head>
+<body>
+  <div id="history"></div>
+  <div id="receipt">
+    <div id="time"></div>
+    <h1>Foundry Bar</h1>
+    <div id="items"></div>
+  </div>
+  <div id="counter">Tickets: <span id="count">0</span></div>
+
+  <script>
+    // ===== Base beers/ciders/bottles =====
+    const MENU_BASE = [
+      'Pint Carling','Pint Coors','Pint Madri','Pint Cruzcampo','Pint Blue Moon','Pint John Smiths','Pint Neck Oil','Pint Guiness','Pint Cider','Pint Dark Fruits','Pint Cask Beer',
+      'Half Pint Carling','Half Pint Coors','Half Pint Madri','Half Pint Cruzcampo','Half Pint Blue Moon','Half Pint John Smiths','Half Pint Neck Oil','Half Pint Guiness','Half Pint Cider','Half Pint Dark Fruits','Half Pint Cask Beer',
+      'Budweiser','Becks','Corona','Desperado','Newcastle Brown','Peroni','Alcohol Free','Sol','Magners','Rekorderlig','VK','Smirnoff Ice','WKD'
+    ];
+
+    // ===== Always-on list (guarantee ≥1 from here on every ticket) =====
+    const ALWAYS = [
+      'Small Wine','Medium Wine','Large Wine','Bottle of Wine',
+      '175ml Prosecco','Bottle Prosecco',
+      'Pint Coke','Pint Lemonade','Pint Diet Coke',
+      'Half Pint Coke','Half Pint Lemonade','Half Pint Diet Coke',
+      'Pint Cordial','Half Pint Cordial',
+      'Red Bull','J2O','Fruit Shoot'
+    ];
+
+    // ===== Spirits / mixers / shots =====
+    const SPIRITS = [
+      'House gin','Gordons Gin','Flavoured Gordons Gin','Whitney Neill Gin','Bombay Sapphire Gin','Brockmans Gin','Hendricks Gin','Edinburgh Gin',
+      'Gin & Tonic (House)','Gin & Tonic (Gordons)','Gin & Tonic (Whitley Neill)','Gin & Tonic (Bombay Sapphire)',
+      'House Vodka','Smirnoff','Absolut Vodka','Vodka Red Bull',
+      'Dark Rum','Kraken','Spiced Rum + Coke','Bacardi + Coke',
+      'Brandy','Brandy + Coke','Havana Rum + Coke','Dead Man’s Fingers + Coke',
+      'Whiskey','Whiskey + Coke','Whiskey + ginger','Malt Whiskey','Jamesons + Coke','Jamesons','Jamesons + Lemonade','Jack Daniels & Coke',
+      'Fireball + Coke','Fireball + Lemonade','Southern Comfort + coke','Southern Comfort + lemonade',
+      'Malibu','Malibu + Coke','Amaretto','Archers + Lemonade','Tia Maria + Coke','Baileys','Martini','Port',
+      'Shot of Tequila','Shot of Jager','Shot of sambuca','Shot Baby Guinness','Shot Sourz'
+    ];
+
+    // Pool = everything
+    const MENU_ALL = MENU_BASE.concat(ALWAYS).concat(SPIRITS);
+
+    // Helpers
+    const rand = (n) => Math.floor(Math.random()*n);
+    const choice = (arr) => arr[rand(arr.length)];
+    function shuffle(arr){
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = rand(i + 1);
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function genItem(){ return { name: choice(MENU_ALL) }; }
+
+    // 2–5 lines per ticket, ensure at least one ALWAYS item
+    function renderNewReceipt(){
+      const len = 2 + rand(4);
+      const items = [];
+
+      // ensure at least one from ALWAYS
+      items.push({ name: choice(ALWAYS) });
+
+      // fill the rest from the full pool
+      for (let i = items.length; i < len; i++) items.push(genItem());
+
+      return shuffle(items);
+    }
+
+    let orderCount = 0;
+    const receipt = document.getElementById('receipt'),
+          timeEl = document.getElementById('time'),
+          itemsEl = document.getElementById('items'),
+          counterEl = document.getElementById('count'),
+          historyEl = document.getElementById('history');
+
+    function displayReceipt(items){
+      const now = new Date();
+      timeEl.textContent = now.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
+      itemsEl.innerHTML = '';
+      items.forEach(it=>{
+        const d = document.createElement('div');
+        d.className = 'item';
+        d.textContent = it.name;
+        itemsEl.appendChild(d);
+      });
+    }
+
+    function addThumbnail(items){
+      const thumb = document.createElement('div');
+      thumb.className = 'thumb';
+      thumb._items = items;
+
+      const lab = document.createElement('div');
+      lab.className = 'label';
+      lab.textContent = 'Foundry';
+      thumb.appendChild(lab);
+
+      items.forEach(it=>{
+        const r = document.createElement('div');
+        r.className = 'item';
+        r.textContent = it.name;
+        thumb.appendChild(r);
+      });
+
+      thumb.addEventListener('click', ()=>{
+        receipt.classList.remove('fly');
+        receipt.style.top='50px';
+        receipt.style.left='50%';
+        receipt.style.transform='translateX(-50%)';
+        displayReceipt(thumb._items);
+      });
+
+      historyEl.appendChild(thumb);
+    }
+
+    receipt.addEventListener('click', ()=>{
+      // capture current to thumbnail
+      const current = [];
+      document.querySelectorAll('#items .item').forEach(div=>{
+        current.push({ name: div.innerText });
+      });
+
+      receipt.classList.add('fly');
+      setTimeout(()=>{
+        addThumbnail(current);
+        receipt.classList.remove('fly');
+        displayReceipt(renderNewReceipt());
+      }, 600);
+
+      orderCount++;
+      counterEl.textContent = orderCount;
+    });
+
+    // init
+    displayReceipt(renderNewReceipt());
+  </script>
+</body>
+</html>
